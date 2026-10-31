@@ -1,0 +1,42 @@
+---
+title: "data_cleaning_GFS"
+output: html_document
+date: "2026-10-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load libraries 
+
+
+
+
+# read csv
+
+
+
+```
+
+# select key variables
+
+# Variable Coding
+
+for example  Convert -98 (Saw, skipped) to NA
+  x[x == 98] <- NA # Convert 98 (DK) to NA
+  x[x == 99] <- NA # Convert 99 (Refused) to NA
+
+# missing data
+
+
+# Scale/Index
+
+
+
+# Outliers 
+
+
+# data transformation if needed 
+
+
+# standardization if needed 

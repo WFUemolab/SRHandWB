@@ -48,3 +48,6 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+.DS_Store
+data/MIDUS3/DS0002/36346-0002-Data.rda
+data/MIDUS3/DS0003/36346-0003-Data.rda

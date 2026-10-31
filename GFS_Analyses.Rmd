@@ -1,0 +1,12 @@
+---
+title: "GFS_Analyses"
+output: html_document
+date: "2026-10-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load in cleaned data
+```
+

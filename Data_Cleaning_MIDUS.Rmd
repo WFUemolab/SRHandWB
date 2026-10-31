@@ -1,0 +1,43 @@
+---
+title: "Data_Cleaning_MIDUS"
+output: html_document
+date: "2026-10-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load libraries 
+
+
+
+
+# load MIDUS 3 Raw Data
+load("data/MIDUS3/DS0001/MIDUS3_Data.rda")
+
+
+```
+
+# View 
+
+
+
+# select key variables
+
+# Variable Coding
+
+for example  Convert -98 (Saw, skipped) to NA
+  x[x == 98] <- NA # Convert 98 (DK) to NA
+  x[x == 99] <- NA # Convert 99 (Refused) to NA
+
+# missing data
+
+
+# Scale/Index
+
+
+
+# Outliers 
+
+
+# data transformation if needed 
