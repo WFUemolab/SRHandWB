@@ -8,35 +8,186 @@ date: "2026-10-01"
 knitr::opts_chunk$set(echo = TRUE)
 
 # load libraries 
+library(tidyverse)
+library(haven)
 
-
-
-
-# read csv
-
-
+# read files
+myDemo <- readRDS("/Users/anaellegackiere/Desktop/SRHandWB/data/GFS/gfs_sweden_w1_perturbed_randomized_sample.RDS")
 
 ```
 
-# select key variables
+# Cleaning Demo (Sweden Sample)
 
-# Variable Coding
+Our variables of interest are:
+WB_TODAY
+WB_FIVEYRS
+PHYSICAL_HLTH
+EXPECT_GOOD
+GENDER (1 male, 2 female)
+INCOME FEELINGS
+AGE
+EXTRAVERSION: TRAITS1 and TRAITS6
+NEUROTICISM: TRAITS4 and TRAITS9
+CONSCIENTIOUSNESS: TRAITS3 and TRAITS8
+COUNTRY
 
-for example  Convert -98 (Saw, skipped) to NA
-  x[x == 98] <- NA # Convert 98 (DK) to NA
-  x[x == 99] <- NA # Convert 99 (Refused) to NA
+```{r}
+myDemo_sub <- myDemo %>%
+  select(COUNTRY,
+         WB_TODAY,
+         WB_FIVEYRS,
+         PHYSICAL_HLTH,
+         EXPECT_GOOD,
+         GENDER,
+         INCOME_FEELINGS,
+         AGE,
+         TRAITS1, TRAITS6, # extraversion
+         TRAITS4, TRAITS9, # neuroticism
+         TRAITS3, TRAITS8) # conscientiousness
 
-# missing data
+dim(myDemo_sub)
+glimpse(myDemo_sub)
+```
 
+```{r}
+# recode nonsubstantive responses to NA
+recode_missing <- function(x, codes = c(-98, 98, 99)) {
+  x <- zap_labels(x)
+  x[x %in% codes] <- NA
+  x
+}
+
+myDemo_clean <- myDemo_sub %>%
+  mutate(
+    across(c(WB_TODAY, WB_FIVEYRS, PHYSICAL_HLTH, EXPECT_GOOD,
+             GENDER, starts_with("TRAITS")),
+           recode_missing),
+    INCOME_FEELINGS = recode_missing(INCOME_FEELINGS, c(-98, 5, 6)),
+    AGE             = recode_missing(AGE, c(-98, 100, 101)),
+    COUNTRY         = zap_labels(COUNTRY)
+  ) %>%
+  mutate(
+    across(c(WB_TODAY, WB_FIVEYRS, PHYSICAL_HLTH, EXPECT_GOOD),
+           ~ if_else(between(.x, 0, 10), .x, NA)),
+    across(starts_with("TRAITS"), ~ if_else(between(.x, 1, 7), .x, NA)),
+    INCOME_FEELINGS = if_else(between(INCOME_FEELINGS, 1, 4), INCOME_FEELINGS, NA),
+    AGE = if_else(between(AGE, 18, 99), AGE, NA)
+  ) %>%
+  filter(GENDER %in% c(1, 2)) %>%
+  mutate(FEMALE = as.integer(GENDER == 2))
+```
+
+# Reverse Coding
+
+```{r}
+myDemo_clean <- myDemo_clean %>%
+  mutate(
+    SUBJECTIVE_INCOME = 5 - INCOME_FEELINGS,# higher = better
+    TRAITS1_r = 8 - TRAITS1, # extraverted, enthusiastic
+    TRAITS4_r = 8 - TRAITS4, # anxious, easily upset
+    TRAITS3_r = 8 - TRAITS3  # dependable, self-disciplined
+  )
+
+count(myDemo_clean, INCOME_FEELINGS, SUBJECTIVE_INCOME)
+count(myDemo_clean, TRAITS1, TRAITS1_r)
+count(myDemo_clean, TRAITS4, TRAITS4_r)
+count(myDemo_clean, TRAITS3, TRAITS3_r)
+```
 
 # Scale/Index
+```{r}
+
+#TIPI scale construction (higher = more of the trait)
+myDemo_clean <- myDemo_clean %>%
+  mutate(
+    EXTRAVERSION      = (TRAITS1_r + TRAITS6) / 2,   # extraverted (r) + reserved
+    NEUROTICISM       = (TRAITS4_r + TRAITS9) / 2,   # anxious (r) + calm
+    CONSCIENTIOUSNESS = (TRAITS3_r + TRAITS8) / 2    # dependable (r) + disorganized
+  )
+```
+
+```{r}
+myDemo_clean %>%
+  select(EXTRAVERSION, NEUROTICISM, CONSCIENTIOUSNESS) %>%
+  summary()
+
+# Scale missingness
+myDemo_clean %>%
+  summarise(across(c(EXTRAVERSION, NEUROTICISM, CONSCIENTIOUSNESS),
+                   ~ round(mean(is.na(.x)), 3)))
+
+# Inter-item correlations
+myDemo_clean %>%
+  summarise(
+    r_extraversion      = cor(TRAITS1_r, TRAITS6, use = "complete.obs"),
+    r_neuroticism       = cor(TRAITS4_r, TRAITS9, use = "complete.obs"),
+    r_conscientiousness = cor(TRAITS3_r, TRAITS8, use = "complete.obs")
+  )
+```
+# Centering
+```{r}
+# grand-mean centering (single-country models)
+center <- function(x) x - mean(x, na.rm = TRUE)
+
+myDemo_clean <- myDemo_clean %>%
+  mutate(
+    AGE_c               = center(AGE),
+    PHYSICAL_HLTH_c     = center(PHYSICAL_HLTH),
+    SUBJECTIVE_INCOME_c = center(SUBJECTIVE_INCOME),
+    EXPECT_GOOD_c       = center(EXPECT_GOOD),
+    EXTRAVERSION_c      = center(EXTRAVERSION),
+    NEUROTICISM_c       = center(NEUROTICISM),
+    CONSCIENTIOUSNESS_c = center(CONSCIENTIOUSNESS)
+  ) %>%
+  # derived terms from centered variables
+  mutate(
+    AGE_c2          = AGE_c^2,
+    SRH_x_AGE       = PHYSICAL_HLTH_c * AGE_c
+  )
+
+# note, if lavaan can't estimate with age as continuous will use age in decades, centered
+#AGE_c   = center(AGE) / 10,   
+#AGE_c2  = AGE_c^2,
+#SRH_x_AGE = PHYSICAL_HLTH_c * AGE_c
+
+```
+
+```{r}
+# centering verification
+myDemo_clean %>%
+  summarise(across(ends_with("_c"), ~ mean(.x, na.rm = TRUE))) %>%
+  round(10)
+
+sd(myDemo_clean$AGE, na.rm = TRUE); sd(myDemo_clean$AGE_c, na.rm = TRUE)
+
+# save RDS
+saveRDS(myDemo_clean, "gfs_clean_perturbed.RDS")
+```
+
+# Age group construction for multigroup RI-CLPM
+
+```{r}
+myDemo_clean <- myDemo_clean %>%
+  mutate(
+    AGE_GROUP = case_when(
+      AGE >= 18 & AGE <= 44 ~ "Young (18-44)",
+      AGE >= 45 & AGE <= 64 ~ "Middle (45-64)",
+      AGE >= 65             ~ "Older (65+)"
+    ),
+    AGE_GROUP = factor(AGE_GROUP,
+                       levels = c("Young (18-44)", "Middle (45-64)", "Older (65+)"))
+  )
+
+count(myDemo_clean, AGE_GROUP)
+
+myDemo_clean %>%
+  group_by(AGE_GROUP) %>%
+  summarise(min_age = min(AGE), max_age = max(AGE), n = n())
+
+saveRDS(myDemo_clean, "gfs_clean_perturbed.RDS")
+```
 
 
-
-# Outliers 
-
-
-# data transformation if needed 
+# Real GFS (W1-3) Cleaning
 
 
-# standardization if needed 

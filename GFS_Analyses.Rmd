@@ -7,6 +7,49 @@ date: "2026-10-01"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
+# load libraries 
+library(tidyverse)
+library(haven)
+library(lavaan)
+
 # load in cleaned data
+demo <- readRDS("/Users/anaellegackiere/Desktop/SRHandWB/gfs_clean_perturbed.RDS")
 ```
+
+# Demonstration with Swedish Perturbed Data
+```{r}
+path_model <- '
+  # Current WB
+  WB_TODAY ~ h1*PHYSICAL_HLTH_c + AGE_c + AGE_c2 + h3a*SRH_x_AGE +
+             EXTRAVERSION_c + NEUROTICISM_c + EXPECT_GOOD_c +
+             CONSCIENTIOUSNESS_c + FEMALE + SUBJECTIVE_INCOME_c
+
+  # Expected WB
+  WB_FIVEYRS ~ h2*PHYSICAL_HLTH_c + WB_TODAY + AGE_c + AGE_c2 + h3b*SRH_x_AGE +
+               EXTRAVERSION_c + NEUROTICISM_c + EXPECT_GOOD_c +
+               CONSCIENTIOUSNESS_c + FEMALE + SUBJECTIVE_INCOME_c
+'
+
+fit_path <- sem(path_model,
+                data      = demo,
+                estimator = "MLR",
+                missing   = "ml.x")
+
+summary(fit_path, standardized = TRUE, rsquare = TRUE)
+```
+
+```{r}
+# Hypothesis tests, unstandardized (h3)
+parameterEstimates(fit_path) %>%
+  filter(label %in% c("h1", "h2", "h3a", "h3b")) %>%
+  select(label, lhs, rhs, est, se, z, pvalue, ci.lower, ci.upper)
+
+# Standardized
+standardizedSolution(fit_path) %>%
+  filter(op == "~") %>%
+  select(lhs, rhs, est.std, se, pvalue)
+```
+
+
+
 
